@@ -22,6 +22,8 @@ def get_regional_vpc_peerings(region):
         region.account, "ec2-describe-vpc-peering-connections", region
     )
     resource_filter = ".VpcPeeringConnections[]"
+    if len(vpc_peerings) == 0:
+        vpc_peerings = {"VpcPeeringConnections": []}
     return pyjq.all(resource_filter, vpc_peerings)
 
 
@@ -30,6 +32,8 @@ def get_regional_direct_connects(region):
         region.account, "/directconnect-describe-connections", region
     )
     resource_filter = ".connections[]"
+    if len(direct_connects) == 0:
+        direct_connects = {"connections": []}
     return pyjq.all(resource_filter, direct_connects)
 
 

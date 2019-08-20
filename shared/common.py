@@ -290,13 +290,14 @@ def get_account_stats(account, all_resources=False):
                         tmp = stats[resource["name"]].get(bucket_region, 0)
                         stats[resource["name"]][bucket_region] = tmp + 1
             else:
-                # Normal path
-                stats[resource["name"]][region.name] = sum(
-                    pyjq.all(
-                        resource["query"],
-                        query_aws(region.account, resource["source"], region),
+                if region.name != 'ap-east-1':
+                    # Normal path
+                    stats[resource["name"]][region.name] = sum(
+                        pyjq.all(
+                            resource["query"],
+                            query_aws(region.account, resource["source"], region),
+                        )
                     )
-                )
 
     return stats
 
