@@ -184,6 +184,24 @@ def get_iam_trusts(account, nodes, connections, connections_to_get):
                         json_blob={"id": "okta", "name": "okta", "type": "Okta"}
                     )
                     assume_role_nodes.add(node)
+                elif "saml-provider/waad" in principal["Federated"].lower():
+                    node = Account(
+                        json_blob={
+                            "id": "WAAD",
+                            "name": "WAAD",
+                            "type": "WAAD",
+                        }
+                    )
+                    assume_role_nodes.add(node)
+                elif "saml-provider/allcloud-sso" in principal["Federated"].lower():
+                    node = Account(
+                        json_blob={
+                            "id": "AllCloud-SSO",
+                            "name": "AllCloud-SSO",
+                            "type": "AllCloud-SSO",
+                        }
+                    )
+                    assume_role_nodes.add(node)
                 elif "saml-provider/onelogin" in principal["Federated"].lower():
                     node = Account(
                         json_blob={
@@ -211,7 +229,7 @@ def get_iam_trusts(account, nodes, connections, connections_to_get):
                     )
                     continue
                 else:
-                    raise Exception(
+                    print(
                         "Unknown federation provider: {}".format(principal["Federated"])
                     )
             if principal.get("AWS", None):
