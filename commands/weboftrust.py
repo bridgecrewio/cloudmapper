@@ -22,6 +22,8 @@ def get_regional_vpc_peerings(region):
         region.account, "ec2-describe-vpc-peering-connections", region
     )
     resource_filter = ".VpcPeeringConnections[]"
+    if len(vpc_peerings) == 0:
+        vpc_peerings = {"VpcPeeringConnections": []}
     return pyjq.all(resource_filter, vpc_peerings)
 
 
@@ -30,6 +32,8 @@ def get_regional_direct_connects(region):
         region.account, "/directconnect-describe-connections", region
     )
     resource_filter = ".connections[]"
+    if len(direct_connects) == 0:
+        direct_connects = {"connections": []}
     return pyjq.all(resource_filter, direct_connects)
 
 
@@ -184,6 +188,24 @@ def get_iam_trusts(account, nodes, connections, connections_to_get):
                         json_blob={"id": "okta", "name": "okta", "type": "Okta"}
                     )
                     assume_role_nodes.add(node)
+                elif "saml-provider/waad" in principal["Federated"].lower():
+                    node = Account(
+                        json_blob={
+                            "id": "WAAD",
+                            "name": "WAAD",
+                            "type": "WAAD",
+                        }
+                    )
+                    assume_role_nodes.add(node)
+                elif "saml-provider/allcloud-sso" in principal["Federated"].lower():
+                    node = Account(
+                        json_blob={
+                            "id": "AllCloud-SSO",
+                            "name": "AllCloud-SSO",
+                            "type": "AllCloud-SSO",
+                        }
+                    )
+                    assume_role_nodes.add(node)
                 elif "saml-provider/onelogin" in principal["Federated"].lower():
                     node = Account(
                         json_blob={
@@ -211,7 +233,7 @@ def get_iam_trusts(account, nodes, connections, connections_to_get):
                     )
                     continue
                 else:
-                    raise Exception(
+                    print(
                         "Unknown federation provider: {}".format(principal["Federated"])
                     )
             if principal.get("AWS", None):
