@@ -302,6 +302,11 @@
   - Name: KeyId
     Value: kms-list-keys.json|.Keys[]?|.KeyId
 - Service: kms
+  Request: describe-key
+  Parameters:
+  - Name: KeyId
+    Value: kms-list-keys.json|.Keys[]?|.KeyId
+- Service: kms
   Request: list-key-policies
   Parameters:
   - Name: KeyId
