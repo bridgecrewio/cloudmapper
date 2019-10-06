@@ -89,9 +89,7 @@ def get_vpc_peerings(region):
     vpc_peerings = query_aws(
         region.account, "ec2-describe-vpc-peering-connections", region
     )
-    resource_filter = ".VpcPeeringConnections[]"
-    if len(vpc_peerings) == 0:
-        vpc_peerings = {"VpcPeeringConnections": []}
+    resource_filter = ".VpcPeeringConnections[]?"
     return pyjq.all(resource_filter, vpc_peerings)
 
 
@@ -105,9 +103,7 @@ def get_subnets(az):
 
 def get_ec2s(region):
     instances = query_aws(region.account, "ec2-describe-instances", region.region)
-    resource_filter = '.Reservations[].Instances[] | select(.State.Name == "running")'
-    if len(instances) == 0:
-        instances = {"Reservations": []}
+    resource_filter = '.Reservations[]?.Instances[] | select(.State.Name == "running")'
     return pyjq.all(resource_filter, instances)
 
 
@@ -115,9 +111,7 @@ def get_elbs(region):
     load_balancers = query_aws(
         region.account, "elb-describe-load-balancers", region.region
     )
-    if len(load_balancers) == 0:
-        load_balancers = {"LoadBalancerDescriptions": []}
-    return pyjq.all(".LoadBalancerDescriptions[]", load_balancers)
+    return pyjq.all(".LoadBalancerDescriptions[]?", load_balancers)
 
 
 def get_elbv2s(region):
@@ -125,23 +119,17 @@ def get_elbv2s(region):
     load_balancers = query_aws(
         region.account, "elbv2-describe-load-balancers", region.region
     )
-    if len(load_balancers) == 0:
-        load_balancers = {"LoadBalancers": []}
-    return pyjq.all(".LoadBalancers[]", load_balancers)
+    return pyjq.all(".LoadBalancers[]?", load_balancers)
 
 
 def get_vpc_endpoints(region):
     endpoints = query_aws(region.account, "ec2-describe-vpc-endpoints", region.region)
-    if len(endpoints) == 0:
-        endpoints = {"VpcEndpoints": []}
-    return pyjq.all(".VpcEndpoints[]", endpoints)
+    return pyjq.all(".VpcEndpoints[]?", endpoints)
 
 
 def get_rds_instances(region):
     instances = query_aws(region.account, "rds-describe-db-instances", region.region)
-    if len(instances) == 0:
-        instances = {"DBInstances": []}
-    return pyjq.all(".DBInstances[]", instances)
+    return pyjq.all(".DBInstances[]?", instances)
 
 
 def get_ecs_tasks(region):
@@ -164,24 +152,18 @@ def get_ecs_tasks(region):
 
 def get_lambda_functions(region):
     functions = query_aws(region.account, "lambda-list-functions", region.region)
-    if len(functions) == 0:
-        functions = {"Functions": []}
-    return pyjq.all(".Functions[]|select(.VpcConfig!=null)", functions)
+    return pyjq.all(".Functions[]?|select(.VpcConfig!=null)", functions)
 
 
 def get_redshift(region):
     clusters = query_aws(region.account, "redshift-describe-clusters", region.region)
-    if len(clusters) == 0:
-        clusters = {"Clusters": []}
-    return pyjq.all(".Clusters[]", clusters)
+    return pyjq.all(".Clusters[]?", clusters)
 
 
 def get_elasticsearch(region):
     es_domains = []
     domain_json = query_aws(region.account, "es-list-domain-names", region.region)
-    if len(domain_json) == 0:
-        domain_json = {"DomainNames": []}
-    domains = pyjq.all(".DomainNames[]", domain_json)
+    domains = pyjq.all(".DomainNames[]?", domain_json)
     for domain in domains:
         es = get_parameter_file(
             region, "es", "describe-elasticsearch-domain", domain["DomainName"]

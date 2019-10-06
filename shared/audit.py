@@ -4,6 +4,9 @@ from os.path import exists
 import pyjq
 import traceback
 import re
+import pkgutil
+import importlib
+import inspect
 
 from policyuniverse.policy import Policy
 
@@ -18,8 +21,11 @@ from shared.common import (
     days_between,
 )
 from shared.query import query_aws, get_parameter_file
-from shared.nodes import Account, Region
+from shared.nodes import Account, Region, get_name
 from shared.iam_audit import find_admins_in_account
+
+# Global
+custom_filter = None
 
 
 class Findings(object):
@@ -40,14 +46,22 @@ class Findings(object):
         return len(self.findings)
 
 
-def finding_is_filtered(finding, conf):
-    if conf["severity"] == "Mute":
+def finding_is_filtered(finding, conf, minimum_severity="LOW"):
+    minimum_severity = minimum_severity.upper()
+    severity_choices = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO", "MUTE"]
+    finding_severity = conf["severity"].upper()
+    if severity_choices.index(finding_severity) > severity_choices.index(
+        minimum_severity
+    ):
         return True
 
     for resource_to_ignore in conf.get("ignore_resources", []):
         ignore_regex = re.compile("^" + resource_to_ignore + "$")
         if re.search(ignore_regex, finding.resource_id):
             return True
+
+    if custom_filter and custom_filter(finding, conf):
+        return True
 
     return False
 
@@ -64,6 +78,13 @@ def load_audit_config():
             # Over-write the values from audit_config
             if audit_override:
                 for finding_id in audit_override:
+                    if finding_id not in audit_config:
+                        audit_config[finding_id] = {
+                            "title": "Unknown",
+                            "description": "Unknown",
+                            "severity": "High",
+                            "group": "unknown",
+                        }
                     for k in audit_override[finding_id]:
                         audit_config[finding_id][k] = audit_override[finding_id][k]
     return audit_config
@@ -169,27 +190,62 @@ def audit_s3_block_policy(findings, region):
 
 
 def audit_guardduty(findings, region):
-    for region_json in get_regions(region.account):
-        region = Region(region.account, region_json)
-        detector_list_json = query_aws(
-            region.account, "guardduty-list-detectors", region
+    detector_list_json = query_aws(region.account, "guardduty-list-detectors", region)
+    if not detector_list_json:
+        # GuardDuty must not exist in this region (or the collect data is old)
+        return
+    is_enabled = False
+    for detector in detector_list_json["DetectorIds"]:
+        detector_json = get_parameter_file(
+            region, "guardduty", "get-detector", detector
         )
-        if not detector_list_json:
-            # GuardDuty must not exist in this region (or the collect data is old)
-            continue
-        is_enabled = False
-        for detector in detector_list_json["DetectorIds"]:
-            detector_json = get_parameter_file(
-                region, "guardduty", "get-detector", detector
-            )
-            if detector_json["Status"] == "ENABLED":
-                is_enabled = True
-        if not is_enabled:
-            findings.add(Finding(region, "GUARDDUTY_OFF", None, None))
+        if detector_json["Status"] == "ENABLED":
+            is_enabled = True
+    if not is_enabled:
+        findings.add(Finding(region, "GUARDDUTY_OFF", None, None))
 
 
 def audit_iam(findings, region):
     find_admins_in_account(region, findings)
+    # By default we get the findings for the admins, but we can also look for specific
+    # privileges, so we'll look for who has s3:ListAllMyBuckets and then only use those
+    # findings that are for a compute resource having this privilege
+
+    s3_listing_findings = Findings()
+    s3_get_findings = Findings()
+
+    # TODO Running find_admins_in_account is really slow, and now we're running it 3 times.
+    #      So figure out a way to run it once.
+    find_admins_in_account(
+        region, s3_listing_findings, privs_to_look_for=["s3:ListAllMyBuckets"]
+    )
+    find_admins_in_account(region, s3_get_findings, privs_to_look_for=["s3:GetObject"])
+
+    for f in s3_listing_findings:
+        if f.issue_id != "IAM_UNEXPECTED_ADMIN_PRINCIPAL":
+            continue
+
+        services = make_list(f.resource_details.get("Principal", {}).get("Service", ""))
+        for service in services:
+            if service in ["config.amazonaws.com", "trustedadvisor.amazonaws.com"]:
+                continue
+
+            # If we are here then we have a principal that can list S3 buckets,
+            # and is associated with an unexpected service,
+            # so check if they can read data from them as well
+
+            for fget in s3_get_findings:
+                if (
+                    fget.issue_id == "IAM_UNEXPECTED_ADMIN_PRINCIPAL"
+                    and fget.resource_id == f.resource_id
+                ):
+                    # If we are here, then the principal can list S3 buckets and get objects
+                    # from them, and is not an unexpected service, so record this as a finding
+                    f.issue_id = "IAM_UNEXPECTED_S3_EXFIL_PRINCIPAL"
+                    findings.add(f)
+
+            # Don't record this multiple times if multiple services are listed
+            break
 
 
 def audit_cloudtrail(findings, region):
@@ -672,7 +728,11 @@ def audit_ec2(findings, region):
                             region,
                             "EC2_OLD",
                             instance["InstanceId"],
-                            resource_details={"Age in days": age_in_days},
+                            resource_details={
+                                "Age in days": age_in_days,
+                                "Name": get_name(instance, "InstanceId"),
+                                "Tags": instance.get("Tags", {}),
+                            },
                         )
                     )
 
@@ -695,7 +755,11 @@ def audit_ec2(findings, region):
                         region,
                         "EC2_SOURCE_DEST_CHECK_OFF",
                         instance["InstanceId"],
-                        resource_details={"routes": route_to_instance},
+                        resource_details={
+                            "routes": route_to_instance,
+                            "Name": get_name(instance, "InstanceId"),
+                            "Tags": instance.get("Tags", {}),
+                        },
                     )
                 )
 
@@ -968,11 +1032,26 @@ def audit_lightsail(findings, region):
 def audit(accounts):
     findings = Findings()
 
+    custom_auditor = None
+    commands_path = "private_commands"
+    for importer, command_name, _ in pkgutil.iter_modules([commands_path]):
+        if "custom_auditor" != command_name:
+            continue
+
+        full_package_name = "%s.%s" % (commands_path, command_name)
+        custom_auditor = importlib.import_module(full_package_name)
+
+        for name, method in inspect.getmembers(custom_auditor, inspect.isfunction):
+            if name.startswith("custom_filter"):
+                global custom_filter
+                custom_filter = method
+
     for account in accounts:
         account = Account(None, account)
 
         for region_json in get_regions(account):
             region = Region(account, region_json)
+
             try:
                 if region.name == "us-east-1":
                     audit_s3_buckets(findings, region)
@@ -984,7 +1063,7 @@ def audit(accounts):
                     audit_route53(findings, region)
                     audit_cloudfront(findings, region)
                     audit_s3_block_policy(findings, region)
-                    audit_guardduty(findings, region)
+                audit_guardduty(findings, region)
                 audit_ebs_snapshots(findings, region)
                 audit_rds_snapshots(findings, region)
                 audit_rds(findings, region)
@@ -1012,4 +1091,26 @@ def audit(accounts):
                         },
                     )
                 )
+
+            # Run custom auditor if it exists
+            try:
+                if custom_auditor is not None:
+                    for name, method in inspect.getmembers(
+                        custom_auditor, inspect.isfunction
+                    ):
+                        if name.startswith("custom_audit_"):
+                            method(findings, region)
+            except Exception as e:
+                findings.add(
+                    Finding(
+                        region,
+                        "EXCEPTION",
+                        str(e),
+                        resource_details={
+                            "exception": str(e),
+                            "traceback": str(traceback.format_exc()),
+                        },
+                    )
+                )
+
     return findings
