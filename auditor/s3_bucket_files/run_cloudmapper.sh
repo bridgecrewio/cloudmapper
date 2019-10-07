@@ -24,7 +24,7 @@ while read account; do
     # For each account, run the following function in the background
     function collect {
         echo "*** Collecting from $1"
-        python cloudmapper.py collect --profile $1 --account $1 > collect_logs/$1
+        python cloudmapper.py collect --profile $1 --account $1 > collect_logs/$1/
         if [ $? -ne 0 ]; then
             echo "ERROR: The collect command had an error for account $1"
             # Record error
@@ -34,6 +34,8 @@ while read account; do
             echo "  Collection from $1 was successful"
             # Record successful collection
             aws cloudwatch put-metric-data --namespace cloudmapper --metric-data MetricName=collections,Value=1
+            echo "*** prepare for $1"
+            python cloudmapper.py prepare --profile $1 --account $1
         fi
     }
     collect $account &
@@ -70,7 +72,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # Copy the logs to the S3 bucket
-aws s3 sync --delete collect_logs/ s3://$S3_BUCKET/collect_logs/
+aws s3 sync --delete collect_logs/ s3://$S3_BUCKET/collect_logs/``
 if [ $? -ne 0 ]; then
     echo "ERROR: syncing the collection logs failed"
     aws cloudwatch put-metric-data --namespace cloudmapper --metric-data MetricName=errors,Value=1
