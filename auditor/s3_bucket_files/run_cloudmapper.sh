@@ -34,6 +34,8 @@ while read account; do
             echo "  Collection from $1 was successful"
             # Record successful collection
             aws cloudwatch put-metric-data --namespace cloudmapper --metric-data MetricName=collections,Value=1
+            echo "*** Prepare for $1"
+            python cloudmapper.py prepare --profile $1 --account $1 > collect_logs/$1
         fi
     }
     collect $account &
