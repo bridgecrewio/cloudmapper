@@ -16,7 +16,6 @@ export SLACK_WEBHOOK=$(aws secretsmanager get-secret-value --secret-id cloudmapp
 echo "Starting CloudMapper audit" | python ./utils/toslack.py
 
 mkdir collect_logs
-mkdir web-test
 
 children_pids=""
 
@@ -36,7 +35,7 @@ while read account; do
             # Record successful collection
             aws cloudwatch put-metric-data --namespace cloudmapper --metric-data MetricName=collections,Value=1
             echo "*** Prepare for $1"
-            python cloudmapper.py prepare --account $1 > web-test/$1
+            python cloudmapper.py prepare --account $1
         fi
     }
     collect $account &
@@ -50,6 +49,27 @@ wait $children_pids
 sleep 10
 
 echo "Done waiting, start audit"
+
+# Copy the data.json file to account
+aws s3 ls s3://$S3_BUCKET/accounts-data-json
+if [[ $? -ne 0 ]]; then
+    echo "creating accounts-data-json folder"
+  cp web/data.json .
+  mv data.json lala.json
+  mkdir accounts-data-json
+  cp lala.json accounts-data-json
+
+  cat accounts-data-json/lala.json
+
+  echo "uploading accounts-data-json to bucket"
+  aws s3 sync accounts-data-json/ s3://$S3_BUCKET/accounts-data-json
+
+else
+   echo "accounts-data-json folder exists"
+   cp web/data.json .
+   mv data.json lala.json
+  aws s3 sync lala.json s3://$S3_BUCKET/accounts-data-json
+fi
 
 # Audit the accounts and send the alerts to Slack
 python cloudmapper.py audit --accounts all --markdown --minimum_severity $MINIMUM_ALERT_SEVERITY | python ./utils/toslack.py
@@ -85,5 +105,6 @@ if [ $? -ne 0 ]; then
     echo "ERROR: syncing web directory failed"
     aws cloudwatch put-metric-data --namespace cloudmapper --metric-data MetricName=errors,Value=1
 fi
+
 echo "Completed CloudMapper audit"
 echo "Completed CloudMapper audit" | python ./utils/toslack.py
