@@ -36,6 +36,10 @@ while read account; do
             aws cloudwatch put-metric-data --namespace cloudmapper --metric-data MetricName=collections,Value=1
             echo "*** Prepare for $1"
             python cloudmapper.py prepare --account $1
+            echo "Copy the data.json file to account"
+            cp web/data.json .
+            mv data.json "$1".json
+            aws s3 cp "$1".json  s3://bridgecrew-090772183824-yonic4-cloudmapper/accounts-data-json/
         fi
     }
     collect $account &
@@ -49,27 +53,6 @@ wait $children_pids
 sleep 10
 
 echo "Done waiting, start audit"
-
-# Copy the data.json file to account
-aws s3 ls s3://$S3_BUCKET/accounts-data-json
-if [[ $? -ne 0 ]]; then
-    echo "creating accounts-data-json folder"
-  cp web/data.json .
-  mv data.json lala.json
-  mkdir accounts-data-json
-  cp lala.json accounts-data-json
-
-  cat accounts-data-json/lala.json
-
-  echo "uploading accounts-data-json to bucket"
-  aws s3 sync accounts-data-json/ s3://$S3_BUCKET/accounts-data-json
-
-else
-   echo "accounts-data-json folder exists"
-   cp web/data.json .
-   mv data.json lala.json
-  aws s3 sync lala.json s3://$S3_BUCKET/accounts-data-json
-fi
 
 # Audit the accounts and send the alerts to Slack
 python cloudmapper.py audit --accounts all --markdown --minimum_severity $MINIMUM_ALERT_SEVERITY | python ./utils/toslack.py
