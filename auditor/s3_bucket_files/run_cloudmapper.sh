@@ -39,7 +39,7 @@ while read account; do
             echo "Copy the data.json file to account"
             cp web/data.json .
             mv data.json "$1".json
-            aws s3 cp "$1".json  s3://bridgecrew-090772183824-yonic4-cloudmapper/accounts-data-json/
+            aws s3 cp "$1".json  s3://$S3_BUCKET/accounts-data-json/
         fi
     }
     collect $account &
