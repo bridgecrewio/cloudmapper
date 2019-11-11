@@ -74,9 +74,7 @@ def get_vpcs(region, outputfilter):
             outputfilter["vpc-names"]
         )
     vpcs = query_aws(region.account, "ec2-describe-vpcs", region)
-    if len(vpcs) == 0:
-        vpcs = {"Vpcs": []}
-    return pyjq.all(".Vpcs[]{}".format(vpc_filter), vpcs)
+    return pyjq.all(".Vpcs[]?{}".format(vpc_filter), vpcs)
 
 
 def get_azs(vpc):

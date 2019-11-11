@@ -21,9 +21,7 @@ def get_regional_vpc_peerings(region):
     vpc_peerings = query_aws(
         region.account, "ec2-describe-vpc-peering-connections", region
     )
-    resource_filter = ".VpcPeeringConnections[]"
-    if len(vpc_peerings) == 0:
-        vpc_peerings = {"VpcPeeringConnections": []}
+    resource_filter = ".VpcPeeringConnections[]?"
     return pyjq.all(resource_filter, vpc_peerings)
 
 
