@@ -34,6 +34,12 @@ while read account; do
             echo "  Collection from $1 was successful"
             # Record successful collection
             aws cloudwatch put-metric-data --namespace cloudmapper --metric-data MetricName=collections,Value=1
+            echo "*** Prepare for $1"
+            python cloudmapper.py prepare --account $1
+            echo "Copy the data.json file to account"
+            cp web/data.json .
+            mv data.json "$1".json
+            aws s3 cp "$1".json  s3://$S3_BUCKET/accounts-data-json/
         fi
     }
     collect $account &
@@ -82,5 +88,6 @@ if [ $? -ne 0 ]; then
     echo "ERROR: syncing web directory failed"
     aws cloudwatch put-metric-data --namespace cloudmapper --metric-data MetricName=errors,Value=1
 fi
+
 echo "Completed CloudMapper audit"
 echo "Completed CloudMapper audit" | python ./utils/toslack.py
