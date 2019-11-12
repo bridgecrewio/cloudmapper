@@ -48,7 +48,7 @@ class CloudmapperauditorStack extends cdk.Stack {
     // a route out, and you can't get rid of the private subnets.
     // So the trick is to remove the routes out.
     // The private subnets remain, but are not usable and have no costs.
-    const vpc = new ec2.Vpc(this, 'CloudMapperVpc', {
+    const vpc = new ec2.Vpc(this, `CloudMapperVpc${config["customer_name"]}`, {
         maxAzs: 2,
         natGateways: 0
     });
@@ -74,11 +74,11 @@ class CloudmapperauditorStack extends cdk.Stack {
     }
 
     // Define the ECS task
-    const cluster = new ecs.Cluster(this, 'Cluster', { vpc });
+    const cluster = new ecs.Cluster(this, `Cluster${config["customer_name"]}`, { vpc });
 
-    const taskDefinition = new ecs.FargateTaskDefinition(this, 'taskDefinition', {});
+    const taskDefinition = new ecs.FargateTaskDefinition(this, `taskDefinition${config["customer_name"]}`, {});
 
-    taskDefinition.addContainer('cloudmapper-container', {
+    taskDefinition.addContainer(`cloudmapper-container${config["customer_name"]}`, {
       image: ecs.ContainerImage.fromAsset('./resources'),
       memoryLimitMiB: 512,
       cpu: 256,
@@ -131,7 +131,7 @@ class CloudmapperauditorStack extends cdk.Stack {
 
     // Create rule to trigger this be run every 24 hours
     new events.Rule(this, "scheduled_run", {
-      ruleName: "cloudmapper_scheduler",
+      ruleName: `cloudmapper_scheduler${config["customer_name"]}`,
       // Run at 2am EST (6am UTC) every night
       schedule: events.Schedule.expression("cron(0 6 * * ? *)"),
       description: "Starts the CloudMapper auditing task every night",
@@ -144,7 +144,7 @@ class CloudmapperauditorStack extends cdk.Stack {
 
     // Create rule to trigger this manually
     new events.Rule(this, "manual_run", {
-      ruleName: "cloudmapper_manual_run",
+      ruleName: `cloudmapper_manual_run${config["customer_name"]}`,
       eventPattern: {source: ['cloudmapper']},
       description: "Allows CloudMapper auditing to be manually started",
       targets: [new targets.EcsTask({
@@ -157,7 +157,7 @@ class CloudmapperauditorStack extends cdk.Stack {
     // Create alarm for any errors
     const error_alarm =  new cloudwatch.Alarm(this, "error_alarm", {
       metric: new cloudwatch.Metric({
-        namespace: 'cloudmapper',
+        namespace: `cloudmapper${config["customer_name"]}`,
         metricName: "errors",
         statistic: "Sum"
       }),
@@ -171,14 +171,14 @@ class CloudmapperauditorStack extends cdk.Stack {
 
     // Create SNS for alarms to be sent to
     const sns_topic = new sns.Topic(this, 'cloudmapper_alarm', {
-      displayName: 'cloudmapper_alarm'
+      displayName: `cloudmapper_alarm${config["customer_name"]}`
     });
 
     // Connect the alarm to the SNS
     error_alarm.addAlarmAction(new cloudwatch_actions.SnsAction(sns_topic));
 
     // Create Lambda to forward alarms
-    const alarm_forwarder = new lambda.Function(this, "alarm_forwarder", {
+    const alarm_forwarder = new lambda.Function(this, `alarm_forwarder${config["customer_name"]}`, {
       runtime: lambda.Runtime.PYTHON_3_7,
       code: lambda.Code.asset("resources/alarm_forwarder"),
       handler: "main.handler",
