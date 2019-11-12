@@ -1,1 +1,7 @@
-{"cidrs": {}, "accounts": [{"default": "true", "id": "809694787632", "name": "809694787632-yonic5"}]}
+{
+  "accounts":
+  [
+    {"id": "000000000000", "name": "test", "default": true}
+  ],
+  "cidrs": {}
+}

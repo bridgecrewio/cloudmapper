@@ -1,7 +1,5 @@
-[profile 809694787632-yonic5]
-region=us-west-2
+[profile test]
+region=us-east-1
 output=json
 credential_source = EcsContainer
-role_arn=arn:aws:iam::809694787632:role/yonic5-bc-bridgecrewcwssarole
-external_id=CT63K9
-
+role_arn=arn:aws:iam::000000000000:role/CloudMapper
