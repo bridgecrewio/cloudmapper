@@ -6,4 +6,4 @@ const cdk = require('@aws-cdk/core');
 const { CloudmapperauditorStack } = require('../lib/cloudmapperauditor-stack');
 
 const app = new cdk.App();
-new CloudmapperauditorStack(app, 'CloudmapperauditorStack');
+new CloudmapperauditorStack(app, 'CloudmapperauditorStacklily');
