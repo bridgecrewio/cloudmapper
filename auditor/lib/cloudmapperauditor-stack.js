@@ -166,7 +166,7 @@ class CloudmapperauditorStack extends cdk.Stack {
       datapointsToAlarm: 1,
       treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
       alarmDescription: "Detect errors",
-      alarmName: "cloudmapper_errors"
+      alarmName: `cloudmapper_errors${config["customer_name"]}`
     });
 
     // Create SNS for alarms to be sent to
