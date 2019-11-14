@@ -121,13 +121,6 @@ class CloudmapperauditorStack extends cdk.Stack {
       actions: ['cloudwatch:PutMetricData']
     }));
 
-    // Grant the ability to read from Secrets Manager
-    taskDefinition.addToTaskRolePolicy(new iam.PolicyStatement({
-      // This IAM privilege has no paths or conditions
-      resources: ["*"],
-      actions: ['secretsmanager:GetSecretValue'],
-      conditions: {'ForAnyValue:StringLike':{'secretsmanager:SecretId': '*cloudmapper-slack-webhook*'}}
-    }));
 
     // Create rule to trigger this be run every 24 hours
     new events.Rule(this, "scheduled_run", {
@@ -153,52 +146,6 @@ class CloudmapperauditorStack extends cdk.Stack {
         subnetSelection: {subnetType: ec2.SubnetType.PUBLIC}
       })]
     });
-
-    // Create alarm for any errors
-    const error_alarm =  new cloudwatch.Alarm(this, "error_alarm", {
-      metric: new cloudwatch.Metric({
-        namespace: `cloudmapper${config["customer_name"]}`,
-        metricName: "errors",
-        statistic: "Sum"
-      }),
-      threshold: 0,
-      evaluationPeriods: 1,
-      datapointsToAlarm: 1,
-      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
-      alarmDescription: "Detect errors",
-      alarmName: `cloudmapper_errors${config["customer_name"]}`
-    });
-
-    // Create SNS for alarms to be sent to
-    const sns_topic = new sns.Topic(this, 'cloudmapper_alarm', {
-      displayName: `cloudmapper_alarm${config["customer_name"]}`
-    });
-
-    // Connect the alarm to the SNS
-    error_alarm.addAlarmAction(new cloudwatch_actions.SnsAction(sns_topic));
-
-    // Create Lambda to forward alarms
-    const alarm_forwarder = new lambda.Function(this, `alarm_forwarder${config["customer_name"]}`, {
-      runtime: lambda.Runtime.PYTHON_3_7,
-      code: lambda.Code.asset("resources/alarm_forwarder"),
-      handler: "main.handler",
-      description: "Forwards alarms from the local SNS to another",
-      logRetention: logs.RetentionDays.TWO_WEEKS,
-      timeout: cdk.Duration.seconds(30),
-      memorySize: 128,
-      environment: {
-        "ALARM_SNS": config['alarm_sns_arn']
-      },
-    });
-
-    // Add priv to publish the events so the alarms can be forwarded
-    alarm_forwarder.addToRolePolicy(new iam.PolicyStatement({
-      resources: [config['alarm_sns_arn']],
-      actions: ['sns:Publish']
-    }));
-
-    // Connect the SNS to the Lambda
-    sns_topic.addSubscription(new sns_subscription.LambdaSubscription(alarm_forwarder));
   }
 }
 
