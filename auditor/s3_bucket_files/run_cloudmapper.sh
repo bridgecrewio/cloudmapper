@@ -10,11 +10,6 @@ aws s3 cp s3://$S3_BUCKET/config ~/.aws/config
 aws s3 cp s3://$S3_BUCKET/config.json config.json
 aws s3 cp s3://$S3_BUCKET/audit_config_override.yaml config/audit_config_override.yaml
 
-# Get Slack webhook
-export SLACK_WEBHOOK=$(aws secretsmanager get-secret-value --secret-id cloudmapper-slack-webhook | jq -cr '.SecretString|fromjson|.webhook')
-
-echo "Starting CloudMapper audit" | python ./utils/toslack.py
-
 mkdir collect_logs
 
 children_pids=""
@@ -55,7 +50,7 @@ sleep 10
 echo "Done waiting, start audit"
 
 # Audit the accounts and send the alerts to Slack
-python cloudmapper.py audit --accounts all --markdown --minimum_severity $MINIMUM_ALERT_SEVERITY | python ./utils/toslack.py
+python cloudmapper.py audit --accounts all --markdown --minimum_severity $MINIMUM_ALERT_SEVERITY
 if [ $? -ne 0 ]; then
     echo "ERROR: The audit command had an error"
     aws cloudwatch put-metric-data --namespace cloudmapper --metric-data MetricName=errors,Value=1
@@ -90,4 +85,3 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "Completed CloudMapper audit"
-echo "Completed CloudMapper audit" | python ./utils/toslack.py
