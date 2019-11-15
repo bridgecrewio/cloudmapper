@@ -16,6 +16,8 @@ def find_unused_security_groups(region):
         region.account, "ec2-describe-network-interfaces", region
     )
 
+    lambdas = query_aws(region.account, "lambda-describe-functions", region)
+
     defined_sg_set = {}
 
     for sg in pyjq.all(".SecurityGroups[]", defined_sgs):
@@ -23,6 +25,11 @@ def find_unused_security_groups(region):
 
     for used_sg in pyjq.all(
         ".NetworkInterfaces[].Groups[].GroupId", network_interfaces
+    ):
+        used_sgs.add(used_sg)
+
+    for used_sg in pyjq.all(
+        ".Functions[]?.VpcConfig.SecurityGroupIds[]", lambdas
     ):
         used_sgs.add(used_sg)
 
@@ -67,7 +74,9 @@ def find_unused_elastic_ips(region):
     unused_ips = []
     ips = query_aws(region.account, "ec2-describe-addresses", region)
     for ip in pyjq.all(".Addresses[] | select(.AssociationId == null)", ips):
-        unused_ips.append({"id": ip["AllocationId"], "ip": ip["PublicIp"]})
+        # Addresses might be attached directly to EC2 instances from before this fix, and therefore haven't been redirected to safety.
+        # This fix addresses which do not have an elastic IP, due to their age or due to the intolerable regimes they liv in.
+        unused_ips.append({"id": ip.get("AllocationId", "The address is for use with instances in EC2-Classic"), "ip": ip["PublicIp"]})
 
     return unused_ips
 
