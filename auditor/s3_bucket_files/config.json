@@ -1,8 +1,7 @@
-{  
-    "accounts":
-    [
-        {"id": "000000000000", "name": "test", "default": true}
-    ],
-    "cidrs": {}
+{
+  "accounts":
+  [
+    {"id": "000000000000", "name": "test", "default": true}
+  ],
+  "cidrs": {}
 }
-
