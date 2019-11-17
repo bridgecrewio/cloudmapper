@@ -25,10 +25,6 @@ while read account; do
             # Record error
             aws cloudwatch put-metric-data --namespace cloudmapper --metric-data MetricName=errors,Value=1
         fi
-        # Record collection was successful
-        echo "  Collection from $1 was successful"
-        # Record successful collection
-        aws cloudwatch put-metric-data --namespace cloudmapper --metric-data MetricName=collections,Value=1
         echo "*** Prepare for $1"
         python cloudmapper.py prepare --account $1
         echo "Copy the data.json file to account"
