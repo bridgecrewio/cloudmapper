@@ -24,18 +24,18 @@ while read account; do
             echo "ERROR: The collect command had an error for account $1"
             # Record error
             aws cloudwatch put-metric-data --namespace cloudmapper --metric-data MetricName=errors,Value=1
-        else
-            # Record collection was successful
-            echo "  Collection from $1 was successful"
-            # Record successful collection
-            aws cloudwatch put-metric-data --namespace cloudmapper --metric-data MetricName=collections,Value=1
-            echo "*** Prepare for $1"
-            python cloudmapper.py prepare --account $1
-            echo "Copy the data.json file to account"
-            cp web/data.json .
-            mv data.json "$1".json
-            aws s3 cp "$1".json  s3://$S3_BUCKET/accounts-data-json/
         fi
+        # Record collection was successful
+        echo "  Collection from $1 was successful"
+        # Record successful collection
+        aws cloudwatch put-metric-data --namespace cloudmapper --metric-data MetricName=collections,Value=1
+        echo "*** Prepare for $1"
+        python cloudmapper.py prepare --account $1
+        echo "Copy the data.json file to account"
+        cp web/data.json .
+        mv data.json "$1".json
+        aws s3 cp "$1".json  s3://$S3_BUCKET/accounts-data-json/
+        
     }
     collect $account &
     children_pids+="$! "
