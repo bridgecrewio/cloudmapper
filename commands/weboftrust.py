@@ -181,7 +181,9 @@ def get_iam_trusts(account, nodes, connections, connections_to_get):
             assume_role_nodes = set()
             if principal.get("Federated", None):
                 # TODO I should be using get-saml-provider to confirm this is really okta
-                if "saml-provider/okta" in principal["Federated"].lower():
+                federated_principals = str(principal["Federated"]).lower()
+                found_provider = False
+                if "saml-provider/okta" in federated_principals:
                     node = Account(
                         json_blob={"id": "okta", "name": "okta", "type": "Okta"}
                     )
@@ -204,7 +206,8 @@ def get_iam_trusts(account, nodes, connections, connections_to_get):
                         }
                     )
                     assume_role_nodes.add(node)
-                elif "saml-provider/onelogin" in principal["Federated"].lower():
+                    found_provider = True
+                if "saml-provider/onelogin" in federated_principals:
                     node = Account(
                         json_blob={
                             "id": "onelogin",
@@ -213,15 +216,18 @@ def get_iam_trusts(account, nodes, connections, connections_to_get):
                         }
                     )
                     assume_role_nodes.add(node)
-                elif "saml-provider/adfs" in principal["Federated"].lower():
+                    found_provider = True
+                if "saml-provider/adfs" in federated_principals:
                     node = Account(
                         json_blob={"id": "adfs", "name": "adfs", "type": "ADFS"}
                     )
                     assume_role_nodes.add(node)
-                elif principal["Federated"] == "cognito-identity.amazonaws.com":
+                    found_provider = True
+                if "cognito-identity.amazonaws.com" in federated_principals:
                     # TODO: Should show this somehow
+                    found_provider = True
                     continue
-                elif principal["Federated"] == "www.amazon.com":
+                if "www.amazon.com" in federated_principals:
                     node = Account(
                         json_blob={
                             "id": "Amazon.com",
@@ -229,9 +235,10 @@ def get_iam_trusts(account, nodes, connections, connections_to_get):
                             "type": "Amazon",
                         }
                     )
+                    found_provider = True
                     continue
-                else:
-                    print(
+                if not found_provider:
+                    raise Exception(
                         "Unknown federation provider: {}".format(principal["Federated"])
                     )
             if principal.get("AWS", None):
