@@ -188,7 +188,8 @@ def get_iam_trusts(account, nodes, connections, connections_to_get):
                         json_blob={"id": "okta", "name": "okta", "type": "Okta"}
                     )
                     assume_role_nodes.add(node)
-                elif "saml-provider/waad" in principal["Federated"].lower():
+                    found_provider = True
+                if "saml-provider/waad" in federated_principals:
                     node = Account(
                         json_blob={
                             "id": "WAAD",
@@ -197,7 +198,8 @@ def get_iam_trusts(account, nodes, connections, connections_to_get):
                         }
                     )
                     assume_role_nodes.add(node)
-                elif "saml-provider/allcloud-sso" in principal["Federated"].lower():
+                    found_provider = True
+                if "saml-provider/allcloud-sso" in federated_principals:
                     node = Account(
                         json_blob={
                             "id": "AllCloud-SSO",
