@@ -183,7 +183,7 @@ def get_iam_trusts(account, nodes, connections, connections_to_get):
                 # TODO I should be using get-saml-provider to confirm this is really okta
                 federated_principals = str(principal["Federated"]).lower()
                 found_provider = False
-                if "saml-provider/okta" in federated_principals:
+                if "saml-provider/okta" in federated_principals or 'saml-provider/OktaIDP-admin' in federated_principals:
                     node = Account(
                         json_blob={"id": "okta", "name": "okta", "type": "Okta"}
                     )
