@@ -29,9 +29,7 @@ def get_regional_direct_connects(region):
     direct_connects = query_aws(
         region.account, "/directconnect-describe-connections", region
     )
-    resource_filter = ".connections[]"
-    if len(direct_connects) == 0:
-        direct_connects = {"connections": []}
+    resource_filter = ".connections[]?"
     return pyjq.all(resource_filter, direct_connects)
 
 
@@ -175,74 +173,89 @@ def get_iam_trusts(account, nodes, connections, connections_to_get):
         Region(account, {"RegionName": "us-east-1"}),
     )
 
+    saml_providers = query_aws(
+        account,
+        "iam-list-saml-providers",
+        Region(account, {"RegionName": "us-east-1"})
+    )["SAMLProviderList"]
+
     for role in pyjq.all(".RoleDetailList[]", iam):
         principals = pyjq.all(".AssumeRolePolicyDocument.Statement[].Principal", role)
         for principal in principals:
             assume_role_nodes = set()
-            if principal.get("Federated", None):
-                # TODO I should be using get-saml-provider to confirm this is really okta
-                federated_principals = str(principal["Federated"]).lower()
-                found_provider = False
-                if "saml-provider/okta" in federated_principals or 'saml-provider/OktaIDP-admin' in federated_principals:
-                    node = Account(
-                        json_blob={"id": "okta", "name": "okta", "type": "Okta"}
-                    )
-                    assume_role_nodes.add(node)
-                    found_provider = True
-                if "saml-provider/waad" in federated_principals:
-                    node = Account(
-                        json_blob={
-                            "id": "WAAD",
-                            "name": "WAAD",
-                            "type": "WAAD",
-                        }
-                    )
-                    assume_role_nodes.add(node)
-                    found_provider = True
-                if "saml-provider/allcloud-sso" in federated_principals:
-                    node = Account(
-                        json_blob={
-                            "id": "AllCloud-SSO",
-                            "name": "AllCloud-SSO",
-                            "type": "AllCloud-SSO",
-                        }
-                    )
-                    assume_role_nodes.add(node)
-                    found_provider = True
-                if "saml-provider/onelogin" in federated_principals:
-                    node = Account(
-                        json_blob={
-                            "id": "onelogin",
-                            "name": "onelogin",
-                            "type": "Onelogin",
-                        }
-                    )
-                    assume_role_nodes.add(node)
-                    found_provider = True
-                if "saml-provider/adfs" in federated_principals:
-                    node = Account(
-                        json_blob={"id": "adfs", "name": "adfs", "type": "ADFS"}
-                    )
-                    assume_role_nodes.add(node)
-                    found_provider = True
-                if "cognito-identity.amazonaws.com" in federated_principals:
-                    # TODO: Should show this somehow
-                    found_provider = True
-                    continue
-                if "www.amazon.com" in federated_principals:
-                    node = Account(
-                        json_blob={
-                            "id": "Amazon.com",
-                            "name": "Amazon.com",
-                            "type": "Amazon",
-                        }
-                    )
-                    found_provider = True
-                    continue
-                if not found_provider:
-                    raise Exception(
-                        "Unknown federation provider: {}".format(principal["Federated"])
-                    )
+            federated_principals = principal.get("Federated", None)
+
+            if federated_principals:
+                if not isinstance(federated_principals, list):
+                    federated_principals = [federated_principals]
+
+                for federated_principal in federated_principals:
+                    try:
+                        saml_provider_arn = next(saml for saml in saml_providers if saml['Arn'] == federated_principal)['Arn']
+
+                        if 'saml-provider/okta' in saml_provider_arn.lower():
+                            node = Account(
+                                json_blob={"id": "okta", "name": "okta", "type": "Okta"}
+                            )
+                            assume_role_nodes.add(node)
+                        elif "saml-provider/onelogin" in saml_provider_arn.lower():
+                            node = Account(
+                                json_blob={
+                                    "id": "onelogin",
+                                    "name": "onelogin",
+                                    "type": "Onelogin",
+                                }
+                            )
+                            assume_role_nodes.add(node)
+                        elif "saml-provider/waad" in saml_provider_arn.lower():
+                            node = Account(
+                                json_blob={
+                                    "id": "WAAD",
+                                    "name": "WAAD",
+                                    "type": "waad",
+                                }
+                            )
+                            assume_role_nodes.add(node)
+                        elif "saml-provider/allcloud-sso" in saml_provider_arn.lower():
+                            node = Account(
+                                json_blob={
+                                    "id": "AllCloud-SSO",
+                                    "name": "AllCloud-SSO",
+                                    "type": "AllCloud-SSO",
+                                }
+                            )
+                            assume_role_nodes.add(node)
+                        elif "saml-provider/adfs" in saml_provider_arn.lower():
+                            node = Account(
+                                json_blob={"id": "adfs", "name": "adfs", "type": "ADFS"}
+                            )
+                            assume_role_nodes.add(node)
+                        elif "saml-provider/auth0" in saml_provider_arn.lower():
+                            node = Account(
+                                json_blob={"id": "auth0", "name": "auth0", "type": "auth0"}
+                            )
+                            assume_role_nodes.add(node)
+                        elif "cognito-identity.amazonaws.com" in saml_provider_arn.lower():
+                            continue
+                        elif "www.amazon.com" in saml_provider_arn.lower():
+                            node = Account(
+                                json_blob={
+                                    "id": "Amazon.com",
+                                    "name": "Amazon.com",
+                                    "type": "Amazon",
+                                }
+                            )
+                            continue
+                        else:
+                            raise Exception(
+                                "Unknown federation provider: {}".format(saml_provider_arn.lower())
+                            )
+
+                    except StopIteration:
+                        if "cognito-identity.amazonaws.com" in federated_principal.lower():
+                            # TODO: Should show this somehow
+                            continue
+                        raise Exception('Principal {} is not a configured SAML provider'.format(federated_principal))
             if principal.get("AWS", None):
                 principal = principal["AWS"]
                 if not isinstance(principal, list):
