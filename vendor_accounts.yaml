@@ -167,6 +167,12 @@
 - name: 'Lucidchart'
   source: 'https://lucidchart.zendesk.com/hc/en-us/articles/208018563-Create-an-IAM-User-or-a-Cross-Account-Role-in-AWS-for-Lucidchart'
   accounts: ['799803075172']
+- name: 'Tenable.io'
+  accounts: ['012615275169']
+- name: 'Evident.io'
+  accounts: ['613698206329']
+- name: 'CloudCraft'
+  accounts: ['968898580625']
 - name: 'Workato'
   source: 'https://docs.workato.com/connectors/s3.html'
   accounts: ['353360065216']
