@@ -4,10 +4,12 @@ import json
 import yaml
 import pyjq
 import urllib.parse
+import logging
 
 from shared.common import parse_arguments, make_list, query_aws, get_regions
 
 __description__ = "Create Web Of Trust diagram for accounts"
+logging.basicConfig(level=logging.INFO)
 
 # TODO: This command would benefit from a few days of work and some sample data sets to improve:
 # - How saml providers are identified. Currently only Okta is identified, and that's a hack.
@@ -253,6 +255,15 @@ def get_iam_trusts(account, nodes, connections, connections_to_get):
                                 }
                             )
                             assume_role_nodes.add(node)
+                        elif "saml-provider/jumpcloud" in saml_provider_arn.lower():
+                            node = Account(
+                                json_blob={
+                                    "id": "jumpcloud",
+                                    "name": "jumpcloud",
+                                    "type": "jumpcloud",
+                                }
+                            )
+                            assume_role_nodes.add(node)
                         elif "cognito-identity.amazonaws.com" in saml_provider_arn.lower():
                             continue
                         elif "www.amazon.com" in saml_provider_arn.lower():
@@ -277,7 +288,7 @@ def get_iam_trusts(account, nodes, connections, connections_to_get):
                             # TODO: handle OpenID Connect identity providers
                             # https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc.html
                             continue
-                        raise Exception('Principal {} is not a configured SAML provider'.format(federated_principal))
+                        logging.error('Principal {} is not a configured SAML provider'.format(federated_principal))
             if principal.get("AWS", None):
                 principal = principal["AWS"]
                 if not isinstance(principal, list):
