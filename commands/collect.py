@@ -82,35 +82,45 @@ def call_function(outputfile, handler, method_to_call, parameters, check, summar
     print("  Making call for {}".format(outputfile), flush=True)
     try:
         for retries in range(MAX_RETRIES):
-            if handler.can_paginate(method_to_call):
-                paginator = handler.get_paginator(method_to_call)
-                page_iterator = paginator.paginate(**parameters)
+            try:
+                if handler.can_paginate(method_to_call):
+                    paginator = handler.get_paginator(method_to_call)
+                    page_iterator = paginator.paginate(**parameters)
 
-                for response in page_iterator:
-                    if not data:
-                        data = response
-                    else:
-                        print("  ...paginating", flush=True)
-                        for k in data:
-                            if isinstance(data[k], list):
-                                data[k].extend(response[k])
-            else:
-                function = getattr(handler, method_to_call)
-                data = function(**parameters)
+                    for response in page_iterator:
+                        if not data:
+                            data = response
+                        else:
+                            print("  ...paginating", flush=True)
+                            for k in data:
+                                if isinstance(data[k], list):
+                                    data[k].extend(response[k])
+                else:
+                    function = getattr(handler, method_to_call)
+                    data = function(**parameters)
 
-            if check is not None:
-                if data[check[0]["Name"]] == check[0]["Value"]:
-                    continue
-                if retries == MAX_RETRIES - 1:
-                    raise Exception(
-                        "Check value {} never set as {} in response".format(
-                            check["Name"], check["Value"]
+                if check is not None:
+                    if data[check[0]["Name"]] == check[0]["Value"]:
+                        continue
+                    if retries == MAX_RETRIES - 1:
+                        raise Exception(
+                            "Check value {} never set as {} in response".format(
+                                check["Name"], check["Value"]
+                            )
                         )
-                    )
-                print("  Sleeping and retrying")
-                time.sleep(3)
-            else:
-                break
+                    print("  Sleeping and retrying")
+                    time.sleep(3)
+                else:
+                    break
+            except:
+                except ClientError as error:
+                    if error.response['Error']['Code'] == 'Throttling':
+                        print('Reached throttling, sleeping for 1 seconds')
+                        time.sleep(1)
+                        continue
+                    else:
+                      raise error
+
 
     except ClientError as e:
         if "NoSuchBucketPolicy" in str(e):
