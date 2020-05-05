@@ -112,14 +112,13 @@ def call_function(outputfile, handler, method_to_call, parameters, check, summar
                     time.sleep(3)
                 else:
                     break
-            except:
-                except ClientError as error:
-                    if error.response['Error']['Code'] == 'Throttling':
-                        print('Reached throttling, sleeping for 1 seconds')
-                        time.sleep(1)
-                        continue
-                    else:
-                      raise error
+            except ClientError as error:
+                if error.response['Error']['Code'] == 'Throttling':
+                    print('Reached throttling, sleeping for 1 seconds')
+                    time.sleep(1)
+                    continue
+                else:
+                  raise error
 
 
     except ClientError as e:
