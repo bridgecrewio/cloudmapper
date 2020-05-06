@@ -671,7 +671,7 @@ def prepare(account, config, outputfilter):
 
 def run(arguments):
     # Parse arguments
-    print("from run"):
+    print("from run:")
     print(arguments)
     parser = argparse.ArgumentParser()
     parser.add_argument(
