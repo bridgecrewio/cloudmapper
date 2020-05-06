@@ -218,7 +218,7 @@ def get_iam_trusts(account, nodes, connections, connections_to_get):
                                 }
                             )
                             assume_role_nodes.add(node)
-                        elif "saml-provider/allcloud-sso" in saml_provider_arn.lower():
+                        elif "saml-provider/allcloud" in saml_provider_arn.lower():
                             node = Account(
                                 json_blob={
                                     "id": "AllCloud-SSO",

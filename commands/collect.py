@@ -118,9 +118,7 @@ def call_function(outputfile, handler, method_to_call, parameters, check, summar
                     time.sleep(10)
                     continue
                 else:
-                  raise error
-
-
+                    raise error
     except ClientError as e:
         if "NoSuchBucketPolicy" in str(e):
             # This error occurs when you try to get the bucket policy for a bucket that has no bucket policy, so this can be ignored.
