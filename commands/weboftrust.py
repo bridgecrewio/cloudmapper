@@ -5,6 +5,7 @@ import yaml
 import pyjq
 import urllib.parse
 import logging
+import re
 
 from shared.common import parse_arguments, make_list, query_aws, get_regions
 
@@ -195,12 +196,12 @@ def get_iam_trusts(account, nodes, connections, connections_to_get):
                     try:
                         saml_provider_arn = next(saml for saml in saml_providers if saml['Arn'] == federated_principal)['Arn']
 
-                        if 'saml-provider/okta' in saml_provider_arn.lower():
+                        if re.match('.*saml-provider/.*okta.*', federated_principal, re.I):
                             node = Account(
                                 json_blob={"id": "okta", "name": "okta", "type": "Okta"}
                             )
                             assume_role_nodes.add(node)
-                        elif "saml-provider/onelogin" in saml_provider_arn.lower():
+                        elif re.match('.*saml-provider/.*onelogin.*', federated_principal, re.I):
                             node = Account(
                                 json_blob={
                                     "id": "onelogin",
@@ -209,7 +210,7 @@ def get_iam_trusts(account, nodes, connections, connections_to_get):
                                 }
                             )
                             assume_role_nodes.add(node)
-                        elif "saml-provider/waad" in saml_provider_arn.lower():
+                        elif re.match('.*saml-provider/.*waad.*', federated_principal, re.I):
                             node = Account(
                                 json_blob={
                                     "id": "WAAD",
@@ -218,7 +219,7 @@ def get_iam_trusts(account, nodes, connections, connections_to_get):
                                 }
                             )
                             assume_role_nodes.add(node)
-                        elif "saml-provider/allcloud" in saml_provider_arn.lower():
+                        elif re.match('.*saml-provider/.*allcloud.*', federated_principal, re.I):
                             node = Account(
                                 json_blob={
                                     "id": "AllCloud-SSO",
@@ -227,17 +228,17 @@ def get_iam_trusts(account, nodes, connections, connections_to_get):
                                 }
                             )
                             assume_role_nodes.add(node)
-                        elif "saml-provider/adfs" in saml_provider_arn.lower():
+                        elif re.match('.*saml-provider/.*adfs.*', federated_principal, re.I):
                             node = Account(
                                 json_blob={"id": "adfs", "name": "adfs", "type": "ADFS"}
                             )
                             assume_role_nodes.add(node)
-                        elif "saml-provider/auth0" in saml_provider_arn.lower():
+                        elif re.match('.*saml-provider/.*auth0.*', federated_principal, re.I):
                             node = Account(
                                 json_blob={"id": "auth0", "name": "auth0", "type": "auth0"}
                             )
                             assume_role_nodes.add(node)
-                        elif "saml-provider/modality" in saml_provider_arn.lower():
+                        elif re.match('.*saml-provider/.*modality.*', federated_principal, re.I):
                             node = Account(
                                 json_blob={
                                     "id": "modality",
@@ -246,7 +247,7 @@ def get_iam_trusts(account, nodes, connections, connections_to_get):
                                 }
                             )
                             assume_role_nodes.add(node)
-                        elif "saml-provider/google" in saml_provider_arn.lower():
+                        elif re.match('.*saml-provider/.*google.*', federated_principal, re.I):
                             node = Account(
                                 json_blob={
                                     "id": "google",
@@ -255,7 +256,7 @@ def get_iam_trusts(account, nodes, connections, connections_to_get):
                                 }
                             )
                             assume_role_nodes.add(node)
-                        elif "saml-provider/jumpcloud" in saml_provider_arn.lower():
+                        elif re.match('.*saml-provider/.*jumpcloud.*', federated_principal, re.I):
                             node = Account(
                                 json_blob={
                                     "id": "jumpcloud",
