@@ -17,8 +17,6 @@ from botocore.config import Config
 __description__ = "Run AWS API calls to collect data from the account"
 
 MAX_RETRIES = 3
-MAX_TASKS_PER_DESCRIBE = 100
-
 
 def snakecase(s):
     return s.replace("-", "_")
@@ -225,6 +223,13 @@ def collect(arguments):
     else:
         default_region = 'us-east-1'
 
+    regions_filter = None
+    if len(arguments.regions_filter) > 0:
+        regions_filter = arguments.regions_filter.lower().split(",")
+        # Force include of default region -- seems to be required
+        if default_region not in regions_filter:
+            regions_filter.append(default_region)
+
     session_data = {"region_name": default_region}
 
     if arguments.profile_name:
@@ -276,6 +281,11 @@ def collect(arguments):
     print("* Getting region names", flush=True)
     ec2 = session.client("ec2")
     region_list = ec2.describe_regions()
+
+    if regions_filter is not None:
+        filtered_regions = [r for r in region_list["Regions"] if r["RegionName"] in regions_filter]
+        region_list["Regions"] = filtered_regions
+
     with open("account-data/{}/describe-regions.json".format(account_dir), "w+") as f:
         f.write(json.dumps(region_list, indent=4, sort_keys=True))
 
@@ -374,24 +384,21 @@ def collect(arguments):
                             )
 
                             with open(list_tasks_file, "r") as f2:
-                                list_tasks_res = json.load(f2)
-                                list_tasks = list_tasks_res['taskArns']
+                                list_tasks = json.load(f2)
 
-                                task_arns_chunks = [list_tasks[i:i + MAX_TASKS_PER_DESCRIBE] for i in range(0, len(list_tasks), MAX_TASKS_PER_DESCRIBE)]
-
-                                # For each task chunk, call `ecs describe-tasks` using the `cluster` and `task` as arguments
-                                for chunk in task_arns_chunks:
+                                # For each task, call `ecs describe-tasks` using the `cluster` and `task` as arguments
+                                for taskArn in list_tasks["taskArns"]:
                                     outputfile = (
                                         action_path
                                         + "/"
                                         + urllib.parse.quote_plus(clusterArn)
                                         + "/"
-                                        + urllib.parse.quote_plus(f"describe_tasks_{task_arns_chunks.index(chunk)}")
+                                        + urllib.parse.quote_plus(taskArn)
                                     )
 
                                     call_parameters = {}
                                     call_parameters["cluster"] = clusterArn
-                                    call_parameters["tasks"] = chunk
+                                    call_parameters["tasks"] = [taskArn]
 
                                     call_function(
                                         outputfile,
@@ -523,6 +530,14 @@ def run(arguments):
         type=int,
         dest="max_attempts",
         default=4
+    )
+    parser.add_argument(
+        "--regions",
+        help="Filter and query AWS only for the given regions (CSV)",
+        required=False,
+        type=str,
+        dest="regions_filter",
+        default=""
     )
 
     args = parser.parse_args(arguments)
