@@ -277,9 +277,7 @@ def get_iam_trusts(account, nodes, connections, connections_to_get):
                             )
                             continue
                         else:
-                            raise Exception(
-                                "Unknown federation provider: {}".format(saml_provider_arn.lower())
-                            )
+                            logging.error("Unknown federation provider: {}".format(saml_provider_arn.lower()))
 
                     except StopIteration:
                         if "cognito-identity.amazonaws.com" in federated_principal.lower():
