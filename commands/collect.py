@@ -314,7 +314,7 @@ def collect(arguments):
 
     with open("collect_commands.yaml", "r") as f:
         collect_commands = yaml.safe_load(f)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=os.getenv("MAX_WORKERS", 8)) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=os.getenv("MAX_WORKERS", 3)) as executor:
         for runner in collect_commands:
             futures = []
             print(
