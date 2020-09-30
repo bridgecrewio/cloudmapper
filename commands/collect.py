@@ -17,7 +17,7 @@ import concurrent.futures
 
 __description__ = "Run AWS API calls to collect data from the account"
 
-MAX_RETRIES = 5
+MAX_RETRIES = 10
 
 
 def snakecase(s):
@@ -314,7 +314,7 @@ def collect(arguments):
 
     with open("collect_commands.yaml", "r") as f:
         collect_commands = yaml.safe_load(f)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=os.getenv("MAX_WORKERS", 3)) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=os.getenv("MAX_WORKERS", 5)) as executor:
         for runner in collect_commands:
             futures = []
             print(
