@@ -182,6 +182,8 @@ def get_iam_trusts(account, nodes, connections, connections_to_get):
         Region(account, {"RegionName": "us-east-1"})
     )["SAMLProviderList"]
 
+    policies = pyjq.all(".Policies[]", iam)
+
     for role in pyjq.all(".RoleDetailList[]", iam):
         principals = pyjq.all(".AssumeRolePolicyDocument.Statement[].Principal", role)
         for principal in principals:
@@ -306,12 +308,10 @@ def get_iam_trusts(account, nodes, connections, connections_to_get):
                 access_type = "iam"
                 # TODO: Identify all admins better.  Use code from find_admins.py
                 for m in role["AttachedManagedPolicies"]:
-                    for p in pyjq.all(".Policies[]", iam):
-                        if p["Arn"] == m["PolicyArn"]:
-                            for policy_doc in p["PolicyVersionList"]:
-                                if policy_doc["IsDefaultVersion"] == True:
-                                    if is_admin_policy(policy_doc["Document"]):
-                                        access_type = "admin"
+                    p = next(pol for pol in policies if pol["Arn"] == m["PolicyArn"])
+                    policy_doc = next(doc for doc in p["PolicyVersionList"] if doc["IsDefaultVersion"])
+                    if is_admin_policy(policy_doc["Document"]):
+                        access_type = "admin"
                 for policy in role["RolePolicyList"]:
                     policy_doc = policy["PolicyDocument"]
                     if is_admin_policy(policy_doc):
