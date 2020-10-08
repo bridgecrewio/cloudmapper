@@ -176,11 +176,15 @@ def get_iam_trusts(account, nodes, connections, connections_to_get):
         Region(account, {"RegionName": "us-east-1"}),
     )
 
-    saml_providers = query_aws(
-        account,
-        "iam-list-saml-providers",
-        Region(account, {"RegionName": "us-east-1"})
-    )["SAMLProviderList"]
+    try:
+        saml_providers = query_aws(
+            account,
+            "iam-list-saml-providers",
+            Region(account, {"RegionName": "us-east-1"})
+        )["SAMLProviderList"]
+    except Exception as e:
+        logging.warning(f'Failed to get SAML providers, assuming there are no SAML providers for this account')
+        saml_providers = []
 
     policies = pyjq.all(".Policies[]", iam)
 
