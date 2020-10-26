@@ -401,3 +401,6 @@ def get_current_policy_doc(policy):
         if doc["IsDefaultVersion"]:
             return doc["Document"]
     raise Exception("No default document version in policy {}".format(policy["Arn"]))
+
+
+NA_JOB_ID = "MOCK_NOT_A_REAL_JOB_ID_DUE_TO_ACCESS_DENIED"

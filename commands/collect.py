@@ -11,7 +11,7 @@ import yaml
 import pyjq
 import urllib.parse
 from botocore.exceptions import ClientError, EndpointConnectionError, NoCredentialsError
-from shared.common import get_account, custom_serializer
+from shared.common import get_account, custom_serializer, NA_JOB_ID
 from botocore.config import Config
 import concurrent.futures
 
@@ -179,6 +179,14 @@ def call_function(outputfile, handler, method_to_call, parameters, check, summar
             and call_summary["action"] == "get_key_rotation_status"
         ):
             print("  - Denied, which should mean this KMS has restricted access")
+        elif (
+            "AccessDenied" in str(e)
+            and call_summary["service"] == "iam"
+            and call_summary["action"] == "generate_service_last_accessed_details"
+        ):
+            print("ClientError: {}".format(e), flush=True)
+            data = {"JobId": NA_JOB_ID}
+            call_summary["exception"] = e
         else:
             print("ClientError: {}".format(e), flush=True)
             call_summary["exception"] = e
