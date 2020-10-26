@@ -11,7 +11,7 @@ from enum import Enum
 from logging import CRITICAL
 from logging import getLogger
 from policyuniverse.policy import Policy
-from shared.common import parse_arguments, get_regions
+from shared.common import parse_arguments, get_regions, NA_JOB_ID
 from shared.query import query_aws, get_parameter_file
 from shared.nodes import Account, Region
 
@@ -91,6 +91,8 @@ def get_access_advisor(region, principal_stats, json_account_auth_details, args)
             "generate-service-last-accessed-details",
             principal_auth["Arn"],
         )["JobId"]
+        if job_id == NA_JOB_ID:
+            continue
         json_last_access_details = get_parameter_file(
             region, "iam", "get-service-last-accessed-details", job_id
         )
