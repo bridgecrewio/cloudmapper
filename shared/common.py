@@ -1,10 +1,11 @@
 from __future__ import print_function
+
 import argparse
-import json
 import datetime
+import json
 import pyjq
-import yaml
 import sys
+import yaml
 from netaddr import IPNetwork
 
 from shared.nodes import Account, Region
@@ -123,9 +124,9 @@ def make_list(v):
 def is_external_cidr(cidr):
     ipnetwork = IPNetwork(cidr)
     if (
-        ipnetwork in IPNetwork("10.0.0.0/8")
-        or ipnetwork in IPNetwork("172.16.0.0/12")
-        or ipnetwork in IPNetwork("192.168.0.0/16")
+            ipnetwork in IPNetwork("10.0.0.0/8")
+            or ipnetwork in IPNetwork("172.16.0.0/12")
+            or ipnetwork in IPNetwork("192.168.0.0/16")
     ):
         return False
     return True
@@ -134,15 +135,15 @@ def is_external_cidr(cidr):
 def is_unblockable_cidr(cidr):
     ipnetwork = IPNetwork(cidr)
     if (
-        ipnetwork in IPNetwork("169.254.0.0/16")
-        or ipnetwork in IPNetwork("127.0.0.0/8")  # link local
-        or ipnetwork in IPNetwork("192.0.2.0/24")  # loopback
-        or ipnetwork in IPNetwork("198.51.100.0/24")  # Test network from RFC 5737
-        or ipnetwork in IPNetwork("203.0.113.0/24")  # Test network
-        or ipnetwork in IPNetwork("224.0.0.0/4")  # Test network
-        or ipnetwork in IPNetwork("240.0.0.0/5")  # class D multicast
-        or ipnetwork in IPNetwork("248.0.0.0/5")  # class E reserved
-        or ipnetwork in IPNetwork("255.255.255.255/32")  # reserved  # broadcast
+            ipnetwork in IPNetwork("169.254.0.0/16")
+            or ipnetwork in IPNetwork("127.0.0.0/8")  # link local
+            or ipnetwork in IPNetwork("192.0.2.0/24")  # loopback
+            or ipnetwork in IPNetwork("198.51.100.0/24")  # Test network from RFC 5737
+            or ipnetwork in IPNetwork("203.0.113.0/24")  # Test network
+            or ipnetwork in IPNetwork("224.0.0.0/4")  # Test network
+            or ipnetwork in IPNetwork("240.0.0.0/5")  # class D multicast
+            or ipnetwork in IPNetwork("248.0.0.0/5")  # class E reserved
+            or ipnetwork in IPNetwork("255.255.255.255/32")  # reserved  # broadcast
     ):
         return True
     return False
@@ -150,7 +151,95 @@ def is_unblockable_cidr(cidr):
 
 def get_regions(account, outputfilter={}):
     # aws ec2 describe-regions
-    region_data = query_aws(account, "describe-regions")
+    try:
+        region_data = query_aws(account, "describe-regions")
+    except Exception as e:
+        log_warning(f'Failed to describe regions for {account}, using default 16 regions')
+        log_warning(f'Error message: {str(e)}')
+        region_data = {
+            "Regions": [
+                {
+                    "Endpoint": "ec2.eu-north-1.amazonaws.com",
+                    "RegionName": "eu-north-1",
+                    "OptInStatus": "opt-in-not-required"
+                },
+                {
+                    "Endpoint": "ec2.ap-south-1.amazonaws.com",
+                    "RegionName": "ap-south-1",
+                    "OptInStatus": "opt-in-not-required"
+                },
+                {
+                    "Endpoint": "ec2.eu-west-3.amazonaws.com",
+                    "RegionName": "eu-west-3",
+                    "OptInStatus": "opt-in-not-required"
+                },
+                {
+                    "Endpoint": "ec2.eu-west-2.amazonaws.com",
+                    "RegionName": "eu-west-2",
+                    "OptInStatus": "opt-in-not-required"
+                },
+                {
+                    "Endpoint": "ec2.eu-west-1.amazonaws.com",
+                    "RegionName": "eu-west-1",
+                    "OptInStatus": "opt-in-not-required"
+                },
+                {
+                    "Endpoint": "ec2.ap-northeast-2.amazonaws.com",
+                    "RegionName": "ap-northeast-2",
+                    "OptInStatus": "opt-in-not-required"
+                },
+                {
+                    "Endpoint": "ec2.ap-northeast-1.amazonaws.com",
+                    "RegionName": "ap-northeast-1",
+                    "OptInStatus": "opt-in-not-required"
+                },
+                {
+                    "Endpoint": "ec2.sa-east-1.amazonaws.com",
+                    "RegionName": "sa-east-1",
+                    "OptInStatus": "opt-in-not-required"
+                },
+                {
+                    "Endpoint": "ec2.ca-central-1.amazonaws.com",
+                    "RegionName": "ca-central-1",
+                    "OptInStatus": "opt-in-not-required"
+                },
+                {
+                    "Endpoint": "ec2.ap-southeast-1.amazonaws.com",
+                    "RegionName": "ap-southeast-1",
+                    "OptInStatus": "opt-in-not-required"
+                },
+                {
+                    "Endpoint": "ec2.ap-southeast-2.amazonaws.com",
+                    "RegionName": "ap-southeast-2",
+                    "OptInStatus": "opt-in-not-required"
+                },
+                {
+                    "Endpoint": "ec2.eu-central-1.amazonaws.com",
+                    "RegionName": "eu-central-1",
+                    "OptInStatus": "opt-in-not-required"
+                },
+                {
+                    "Endpoint": "ec2.us-east-1.amazonaws.com",
+                    "RegionName": "us-east-1",
+                    "OptInStatus": "opt-in-not-required"
+                },
+                {
+                    "Endpoint": "ec2.us-east-2.amazonaws.com",
+                    "RegionName": "us-east-2",
+                    "OptInStatus": "opt-in-not-required"
+                },
+                {
+                    "Endpoint": "ec2.us-west-1.amazonaws.com",
+                    "RegionName": "us-west-1",
+                    "OptInStatus": "opt-in-not-required"
+                },
+                {
+                    "Endpoint": "ec2.us-west-2.amazonaws.com",
+                    "RegionName": "us-west-2",
+                    "OptInStatus": "opt-in-not-required"
+                }
+            ]
+        }
 
     region_filter = ""
     if "regions" in outputfilter:
