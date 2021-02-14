@@ -289,8 +289,96 @@ def collect(arguments):
         exit(-1)
 
     print("* Getting region names", flush=True)
-    ec2 = session.client("ec2")
-    region_list = ec2.describe_regions()
+    try:
+        ec2 = session.client("ec2")
+        region_list = ec2.describe_regions()
+    except Exception as e:
+        print(f'Failed to describe regions for {arguments.profile_name}, using default 16 regions')
+        print(f'Error message: {str(e)}')
+        region_list = {
+            "Regions": [
+                {
+                    "Endpoint": "ec2.eu-north-1.amazonaws.com",
+                    "RegionName": "eu-north-1",
+                    "OptInStatus": "opt-in-not-required"
+                },
+                {
+                    "Endpoint": "ec2.ap-south-1.amazonaws.com",
+                    "RegionName": "ap-south-1",
+                    "OptInStatus": "opt-in-not-required"
+                },
+                {
+                    "Endpoint": "ec2.eu-west-3.amazonaws.com",
+                    "RegionName": "eu-west-3",
+                    "OptInStatus": "opt-in-not-required"
+                },
+                {
+                    "Endpoint": "ec2.eu-west-2.amazonaws.com",
+                    "RegionName": "eu-west-2",
+                    "OptInStatus": "opt-in-not-required"
+                },
+                {
+                    "Endpoint": "ec2.eu-west-1.amazonaws.com",
+                    "RegionName": "eu-west-1",
+                    "OptInStatus": "opt-in-not-required"
+                },
+                {
+                    "Endpoint": "ec2.ap-northeast-2.amazonaws.com",
+                    "RegionName": "ap-northeast-2",
+                    "OptInStatus": "opt-in-not-required"
+                },
+                {
+                    "Endpoint": "ec2.ap-northeast-1.amazonaws.com",
+                    "RegionName": "ap-northeast-1",
+                    "OptInStatus": "opt-in-not-required"
+                },
+                {
+                    "Endpoint": "ec2.sa-east-1.amazonaws.com",
+                    "RegionName": "sa-east-1",
+                    "OptInStatus": "opt-in-not-required"
+                },
+                {
+                    "Endpoint": "ec2.ca-central-1.amazonaws.com",
+                    "RegionName": "ca-central-1",
+                    "OptInStatus": "opt-in-not-required"
+                },
+                {
+                    "Endpoint": "ec2.ap-southeast-1.amazonaws.com",
+                    "RegionName": "ap-southeast-1",
+                    "OptInStatus": "opt-in-not-required"
+                },
+                {
+                    "Endpoint": "ec2.ap-southeast-2.amazonaws.com",
+                    "RegionName": "ap-southeast-2",
+                    "OptInStatus": "opt-in-not-required"
+                },
+                {
+                    "Endpoint": "ec2.eu-central-1.amazonaws.com",
+                    "RegionName": "eu-central-1",
+                    "OptInStatus": "opt-in-not-required"
+                },
+                {
+                    "Endpoint": "ec2.us-east-1.amazonaws.com",
+                    "RegionName": "us-east-1",
+                    "OptInStatus": "opt-in-not-required"
+                },
+                {
+                    "Endpoint": "ec2.us-east-2.amazonaws.com",
+                    "RegionName": "us-east-2",
+                    "OptInStatus": "opt-in-not-required"
+                },
+                {
+                    "Endpoint": "ec2.us-west-1.amazonaws.com",
+                    "RegionName": "us-west-1",
+                    "OptInStatus": "opt-in-not-required"
+                },
+                {
+                    "Endpoint": "ec2.us-west-2.amazonaws.com",
+                    "RegionName": "us-west-2",
+                    "OptInStatus": "opt-in-not-required"
+                }
+            ]
+        }
 
     if regions_filter is not None:
         filtered_regions = [r for r in region_list["Regions"] if r["RegionName"] in regions_filter]
