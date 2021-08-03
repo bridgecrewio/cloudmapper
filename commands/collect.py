@@ -283,7 +283,7 @@ def collect(arguments):
         else:
             print("ERROR: Ensure your creds are valid.", flush=True)
             print(e, flush=True)
-            exit(-1)
+            # exit(-1)
     except NoCredentialsError:
         print("ERROR: No AWS credentials configured.", flush=True)
         exit(-1)
