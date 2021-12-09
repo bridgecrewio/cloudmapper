@@ -66,7 +66,7 @@ def call_function(outputfile, handler, method_to_call, parameters, check, summar
     """
     # TODO: Decorate this with rate limiters from
     # https://github.com/Netflix-Skunkworks/cloudaux/blob/master/cloudaux/aws/decorators.py
-
+    job_id_to_clean = None
     data = None
     if os.path.isfile(outputfile):
         # Data already collected, so skip
@@ -118,6 +118,9 @@ def call_function(outputfile, handler, method_to_call, parameters, check, summar
                     time.sleep(10)
                     continue
                 else:
+                    if call_summary["action"] == 'get_service_last_accessed_details':
+                        job_id_to_clean = call_summary["parameters"]["JobId"]
+                        print(f'Adding JobId from {job_id_to_clean} to job_ids_to_clean')
                     raise error
     except ClientError as e:
         if "NoSuchBucketPolicy" in str(e):
@@ -210,6 +213,17 @@ def call_function(outputfile, handler, method_to_call, parameters, check, summar
             )
 
     summary.append(call_summary)
+
+    if job_id_to_clean:
+        path_to_job_trigger = os.path.join(os.path.dirname(os.path.dirname(outputfile)),
+                                           'iam-generate-service-last-accessed-details')
+        for filename in os.listdir(path_to_job_trigger):
+            file_path = os.path.join(path_to_job_trigger, filename)
+            if os.path.isfile(file_path):
+                with open(file_path) as f:
+                    content = json.load(f)
+                    if content["JobId"] == job_id_to_clean:
+                        os.remove(file_path)
 
 
 def collect(arguments):

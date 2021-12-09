@@ -1,0 +1,21 @@
+name: docker-build
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  publish-dockerhub:
+    runs-on: [ self-hosted, public, linux, x64 ]
+    steps:
+      - uses: actions/checkout@v2
+      - name: Publish to Registry
+        uses: elgohr/Publish-Docker-Github-Action@master
+        with:
+          name: bridgecrew/dockerized-cloudmapper
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+          buildoptions: "--no-cache"
+          tags: "latest"
