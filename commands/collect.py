@@ -120,7 +120,10 @@ def call_function(outputfile, handler, method_to_call, parameters, check, summar
                 else:
                     if call_summary["action"] == 'get_service_last_accessed_details':
                         job_id_to_clean = call_summary["parameters"]["JobId"]
-                        print(f'Adding JobId from {job_id_to_clean} to job_ids_to_clean')
+                        if job_id_to_clean != NA_JOB_ID:
+                            print(f'Adding JobId from {job_id_to_clean} to job_ids_to_clean')
+                        else:
+                            job_id_to_clean = None
                     raise error
     except ClientError as e:
         if "NoSuchBucketPolicy" in str(e):
