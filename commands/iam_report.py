@@ -85,14 +85,15 @@ def get_access_advisor(region, principal_stats, json_account_auth_details, args)
     ]:
         stats = {}
         stats["auth"] = principal_auth
-        job_id = get_parameter_file(
+        param_file = get_parameter_file(
             region,
             "iam",
             "generate-service-last-accessed-details",
             principal_auth["Arn"],
-        )["JobId"]
-        if job_id == 'MOCK_NOT_A_REAL_JOB_ID_DUE_TO_ACCESS_DENIED':
+        )
+        if not param_file:
             continue
+        job_id = param_file["JobId"]
         if job_id == NA_JOB_ID:
             continue
         json_last_access_details = get_parameter_file(
