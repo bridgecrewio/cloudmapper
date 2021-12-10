@@ -35,14 +35,14 @@
   Request: list-account-aliases
 - Service: iam
   Request: get-credential-report
-- Service: iam
-  Request: get-service-last-accessed-details
-  Parameters:
-    - Name: JobId
-      Value: iam-generate-service-last-accessed-details/*|.JobId
-  Check:
-    - Name: JobStatus
-      Value: "COMPLETED"
+#- Service: iam
+#  Request: get-service-last-accessed-details
+#  Parameters:
+#    - Name: JobId
+#      Value: iam-generate-service-last-accessed-details/*|.JobId
+#  Check:
+#    - Name: JobStatus
+#      Value: "COMPLETED"
 - Service: iam
   Request: list-saml-providers
 - Service: iam

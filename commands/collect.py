@@ -13,6 +13,7 @@ import urllib.parse
 from botocore.exceptions import ClientError, EndpointConnectionError, NoCredentialsError
 from shared.common import get_account, custom_serializer, NA_JOB_ID
 from botocore.config import Config
+import concurrent.futures
 
 __description__ = "Run AWS API calls to collect data from the account"
 
@@ -81,36 +82,43 @@ def call_function(outputfile, handler, method_to_call, parameters, check, summar
     print("  Making call for {}".format(outputfile), flush=True)
     try:
         for retries in range(MAX_RETRIES):
-            if handler.can_paginate(method_to_call):
-                paginator = handler.get_paginator(method_to_call)
-                page_iterator = paginator.paginate(**parameters)
+            try:
+                if handler.can_paginate(method_to_call):
+                    paginator = handler.get_paginator(method_to_call)
+                    page_iterator = paginator.paginate(**parameters)
 
-                for response in page_iterator:
-                    if not data:
-                        data = response
-                    else:
-                        print("  ...paginating", flush=True)
-                        for k in data:
-                            if isinstance(data[k], list):
-                                data[k].extend(response[k])
-            else:
-                function = getattr(handler, method_to_call)
-                data = function(**parameters)
+                    for response in page_iterator:
+                        if not data:
+                            data = response
+                        else:
+                            print("  ...paginating", flush=True)
+                            for k in data:
+                                if isinstance(data[k], list):
+                                    data[k].extend(response[k])
+                else:
+                    function = getattr(handler, method_to_call)
+                    data = function(**parameters)
 
-            if check is not None:
-                if data[check[0]["Name"]] == check[0]["Value"]:
-                    continue
-                if retries == MAX_RETRIES - 1:
-                    raise Exception(
-                        "Check value {} never set as {} in response".format(
-                            check["Name"], check["Value"]
+                if check is not None:
+                    if data[check[0]["Name"]] == check[0]["Value"]:
+                        break
+                    if retries == MAX_RETRIES - 1:
+                        raise Exception(
+                            "Check value {} never set as {} in response".format(
+                                check["Name"], check["Value"]
+                            )
                         )
-                    )
-                print("  Sleeping and retrying")
-                time.sleep(3)
-            else:
-                break
-
+                    print("  Sleeping and retrying")
+                    time.sleep(3)
+                else:
+                    break
+            except ClientError as error:
+                if error.response['Error']['Code'] == 'Throttling' and retries < MAX_RETRIES - 1:
+                    print('Reached throttling, sleeping for 10 seconds')
+                    time.sleep(10)
+                    continue
+                else:
+                    raise error
     except ClientError as e:
         if "NoSuchBucketPolicy" in str(e):
             # This error occurs when you try to get the bucket policy for a bucket that has no bucket policy, so this can be ignored.
@@ -208,6 +216,36 @@ def call_function(outputfile, handler, method_to_call, parameters, check, summar
             )
 
     summary.append(call_summary)
+
+
+def get_service_last_access_details(outputfile, handler, method_to_call, call_parameters, summary):
+    call_function(
+        outputfile,
+        handler,
+        method_to_call,
+        call_parameters,
+        None,
+        summary
+    )
+    with open(outputfile) as output_content:
+        content = json.load(output_content)
+
+    job_id = content["JobId"]
+    if job_id != NA_JOB_ID:
+        get_details_call = 'get_service_last_accessed_details'
+        outputfile = outputfile.replace(method_to_call.replace('_', '-'),
+                                        get_details_call.replace('_', '-'))
+        outputfile = '/'.join(outputfile.split('/')[:-1]) + f'/{job_id}'
+        make_directory(os.path.dirname(outputfile))
+        time.sleep(2)
+        call_function(
+            outputfile,
+            handler,
+            get_details_call,
+            {'JobId': job_id},
+            [{'Name': 'JobStatus', 'Value': 'COMPLETED'}],
+            summary
+        )
 
 
 def collect(arguments):
@@ -409,63 +447,62 @@ def collect(arguments):
 
     with open("collect_commands.yaml", "r") as f:
         collect_commands = yaml.safe_load(f)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=os.getenv("MAX_WORKERS", 5)) as executor:
+        for runner in collect_commands:
+            futures = []
+            print(
+                "* Getting {}:{} info".format(runner["Service"], runner["Request"]),
+                flush=True,
+            )
 
-    for runner in collect_commands:
-        print(
-            "* Getting {}:{} info".format(runner["Service"], runner["Request"]),
-            flush=True,
-        )
-
-        parameters = {}
-        for region in region_list["Regions"]:
-            dynamic_parameter = None
-            # Only call universal services in default region
-            if runner["Service"] in universal_services:
-                if region["RegionName"] != default_region:
+            parameters = {}
+            for region in region_list["Regions"]:
+                dynamic_parameter = None
+                # Only call universal services in default region
+                if runner["Service"] in universal_services:
+                    if region["RegionName"] != default_region:
+                        continue
+                elif region["RegionName"] not in session.get_available_regions(
+                    runner["Service"]
+                ):
+                    print(
+                        "  Skipping region {}, as {} does not exist there".format(
+                            region["RegionName"], runner["Service"]
+                        )
+                    )
                     continue
-            elif region["RegionName"] not in session.get_available_regions(
-                runner["Service"]
-            ):
-                print(
-                    "  Skipping region {}, as {} does not exist there".format(
-                        region["RegionName"], runner["Service"]
-                    )
+                handler = session.client(
+                    runner["Service"],
+                    region_name=region["RegionName"],
+                    config=Config(retries={"max_attempts": arguments.max_attempts})
                 )
-                continue
-            handler = session.client(
-                runner["Service"],
-                region_name=region["RegionName"],
-                config=Config(retries={"max_attempts": arguments.max_attempts}),
-            )
 
-            filepath = "account-data/{}/{}/{}-{}".format(
-                account_dir, region["RegionName"], runner["Service"], runner["Request"]
-            )
+                filepath = "account-data/{}/{}/{}-{}".format(
+                    account_dir, region["RegionName"], runner["Service"], runner["Request"]
+                )
 
-            method_to_call = snakecase(runner["Request"])
+                method_to_call = snakecase(runner["Request"])
 
-            # Identify any parameters
-            if runner.get("Parameters", False):
-                for parameter in runner["Parameters"]:
-                    parameters[parameter["Name"]] = parameter["Value"]
+                # Identify any parameters
+                if runner.get("Parameters", False):
+                    for parameter in runner["Parameters"]:
+                        parameters[parameter["Name"]] = parameter["Value"]
 
-                    # Look for any dynamic values (ones that jq parse a file)
-                    if "|" in parameter["Value"]:
-                        dynamic_parameter = parameter["Name"]
+                        # Look for any dynamic values (ones that jq parse a file)
+                        if "|" in parameter["Value"]:
+                            dynamic_parameter = parameter["Name"]
 
-            if runner.get("Custom_collection", False):
-                # The data to collect for this function is too complicated for my existing code,
-                # so I have to write custom code.
-                if runner["Service"] == "ecs" and runner["Request"] == "describe-tasks":
-                    action_path = filepath
-                    make_directory(action_path)
+                if runner.get("Custom_collection", False):
+                    # The data to collect for this function is too complicated for my existing code,
+                    # so I have to write custom code.
+                    if runner["Service"] == "ecs" and runner["Request"] == "describe-tasks":
+                        action_path = filepath
+                        make_directory(action_path)
 
-                    # Read the ecs-list-clusters.json file
-                    list_clusters_file = "account-data/{}/{}/{}".format(
-                        account_dir, region["RegionName"], "ecs-list-clusters.json"
-                    )
-
-                    if os.path.isfile(list_clusters_file):
+                        # Read the ecs-list-clusters.json file
+                        list_clusters_file = "account-data/{}/{}/{}".format(
+                            account_dir, region["RegionName"], "ecs-list-clusters.json"
+                        )
                         with open(list_clusters_file, "r") as f:
                             list_clusters = json.load(f)
 
@@ -502,139 +539,95 @@ def collect(arguments):
                                         call_parameters["cluster"] = clusterArn
                                         call_parameters["tasks"] = [taskArn]
 
-                                        call_function(
+                                        futures.append(executor.submit(
+                                            call_function,
                                             outputfile,
                                             handler,
                                             method_to_call,
                                             call_parameters,
                                             runner.get("Check", None),
                                             summary,
-                                        )
-                elif (
-                    runner["Service"] == "route53"
-                    and runner["Request"] == "list-hosted-zones-by-vpc"
-                ):
-                    action_path = filepath
-                    make_directory(action_path)
+                                        ))
 
-                    # Read the regions file
-                    regions_file = "account-data/{}/{}".format(
-                        account_dir, "describe-regions.json"
+                elif dynamic_parameter is not None:
+                    # Set up directory for the dynamic value
+                    make_directory(filepath)
+
+                    # The dynamic parameter must always be the first value
+                    parameter_file = parameters[dynamic_parameter].split("|")[0]
+                    parameter_file = "account-data/{}/{}/{}".format(
+                        account_dir, region["RegionName"], parameter_file
                     )
-                    with open(regions_file, "r") as f:
-                        describe_regions = json.load(f)
 
-                        # For each region
-                        for collect_region in describe_regions["Regions"]:
-                            cluster_path = (
-                                action_path
-                                + "/"
-                                + urllib.parse.quote_plus(collect_region["RegionName"])
+                    # Get array if a globbing pattern is used (ex. "*.json")
+                    parameter_files = glob.glob(parameter_file)
+
+                    for parameter_file in parameter_files:
+                        if not os.path.isfile(parameter_file):
+                            # The file where parameters are obtained from does not exist
+                            # Need to manually add the failure to our list of calls made as this failure
+                            # occurs before the call is attempted.
+                            call_summary = {
+                                "service": handler.meta.service_model.service_name,
+                                "action": method_to_call,
+                                "parameters": parameters,
+                                "exception": "Parameter file does not exist: {}".format(
+                                    parameter_file
+                                ),
+                            }
+                            summary.append(call_summary)
+                            print(
+                                "  The file where parameters are obtained from does not exist: {}".format(
+                                    parameter_file
+                                ),
+                                flush=True,
                             )
-                            make_directory(cluster_path)
+                            continue
 
-                            # Read the VPC file
-                            describe_vpcs_file = "account-data/{}/{}/{}".format(
-                                account_dir,
-                                collect_region["RegionName"],
-                                "ec2-describe-vpcs.json",
+                        with open(parameter_file, "r") as f:
+                            parameter_values = json.load(f)
+                            pyjq_parse_string = "|".join(
+                                parameters[dynamic_parameter].split("|")[1:]
                             )
+                            for parameter in pyjq.all(pyjq_parse_string, parameter_values):
+                                filename = get_filename_from_parameter(parameter)
+                                identifier = get_identifier_from_parameter(parameter)
+                                call_parameters = dict(parameters)
+                                call_parameters[dynamic_parameter] = identifier
 
-                            if os.path.isfile(describe_vpcs_file):
-                                with open(describe_vpcs_file, "r") as f2:
-                                    describe_vpcs = json.load(f2)
+                                outputfile = "{}/{}".format(filepath, filename)
 
-                                    for vpc in describe_vpcs["Vpcs"]:
-                                        outputfile = (
-                                            action_path
-                                            + "/"
-                                            + urllib.parse.quote_plus(
-                                                collect_region["RegionName"]
-                                            )
-                                            + "/"
-                                            + urllib.parse.quote_plus(vpc["VpcId"])
-                                        )
-
-                                        call_parameters = {}
-                                        call_parameters["VPCRegion"] = collect_region[
-                                            "RegionName"
-                                        ]
-                                        call_parameters["VPCId"] = vpc["VpcId"]
-                                        call_function(
-                                            outputfile,
-                                            handler,
-                                            method_to_call,
-                                            call_parameters,
-                                            runner.get("Check", None),
-                                            summary,
-                                        )
-
-            elif dynamic_parameter is not None:
-                # Set up directory for the dynamic value
-                make_directory(filepath)
-
-                # The dynamic parameter must always be the first value
-                parameter_file = parameters[dynamic_parameter].split("|")[0]
-                parameter_file = "account-data/{}/{}/{}".format(
-                    account_dir, region["RegionName"], parameter_file
-                )
-
-                # Get array if a globbing pattern is used (ex. "*.json")
-                parameter_files = glob.glob(parameter_file)
-
-                for parameter_file in parameter_files:
-                    if not os.path.isfile(parameter_file):
-                        # The file where parameters are obtained from does not exist
-                        # Need to manually add the failure to our list of calls made as this failure
-                        # occurs before the call is attempted.
-                        call_summary = {
-                            "service": handler.meta.service_model.service_name,
-                            "action": method_to_call,
-                            "parameters": parameters,
-                            "exception": "Parameter file does not exist: {}".format(
-                                parameter_file
-                            ),
-                        }
-                        summary.append(call_summary)
-                        print(
-                            "  The file where parameters are obtained from does not exist: {}".format(
-                                parameter_file
-                            ),
-                            flush=True,
-                        )
-                        continue
-
-                    with open(parameter_file, "r") as f:
-                        parameter_values = json.load(f)
-                        pyjq_parse_string = "|".join(
-                            parameters[dynamic_parameter].split("|")[1:]
-                        )
-                        for parameter in pyjq.all(pyjq_parse_string, parameter_values):
-                            filename = get_filename_from_parameter(parameter)
-                            identifier = get_identifier_from_parameter(parameter)
-                            call_parameters = dict(parameters)
-                            call_parameters[dynamic_parameter] = identifier
-
-                            outputfile = "{}/{}".format(filepath, filename)
-
-                            call_function(
-                                outputfile,
-                                handler,
-                                method_to_call,
-                                call_parameters,
-                                runner.get("Check", None),
-                                summary,
-                            )
-            else:
-                filepath = filepath + ".json"
-                call_function(
-                    filepath,
-                    handler,
-                    method_to_call,
-                    parameters,
-                    runner.get("Check", None),
-                    summary,
-                )
+                                if method_to_call == 'generate_service_last_accessed_details':
+                                    futures.append(executor.submit(
+                                        get_service_last_access_details,
+                                        outputfile,
+                                        handler,
+                                        method_to_call,
+                                        call_parameters,
+                                        summary,
+                                    ))
+                                else:
+                                    futures.append(executor.submit(
+                                        call_function,
+                                        outputfile,
+                                        handler,
+                                        method_to_call,
+                                        call_parameters,
+                                        runner.get("Check", None),
+                                        summary,
+                                    ))
+                else:
+                    filepath = filepath + ".json"
+                    futures.append(executor.submit(
+                        call_function,
+                        filepath,
+                        handler,
+                        method_to_call,
+                        parameters,
+                        runner.get("Check", None),
+                        summary,
+                    ))
+            concurrent.futures.wait(futures)
 
     # Print summary
     print("--------------------------------------------------------------------")
