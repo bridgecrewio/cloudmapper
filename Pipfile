@@ -37,7 +37,7 @@ toml = "==0.10.0"
 typed-ast = "==1.4.1"
 urllib3 = "==1.25.9"
 wrapt = "==1.12.1"
-Jinja2 = "==2.10.1"
+Jinja2 = "==2.11.3"
 MarkupSafe = "==1.1.1"
 PyYAML = "==4.2b4"
 
